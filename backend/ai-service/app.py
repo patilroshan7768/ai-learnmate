@@ -147,20 +147,20 @@ Lecture:
                 raise HTTPException(status_code=500, detail=error_msg)
 
 # ===========================================================
-# ❓ QUIZ
+# ❓ QUIZ (Switched to Gemini for Massive Token Support)
 # ===========================================================
 
 class QuizRequest(BaseModel):
-    text: str # This should now receive the SUMMARY from the frontend
+    text: str 
 
 @app.post("/generate-quiz")
 async def generate_quiz(request: QuizRequest):
     try:
-        # 1️⃣ DYNAMIC SIZING: Calculate how many questions to ask
+        # 1️⃣ DYNAMIC SIZING: Calculate how many questions to ask based on the massive text
         word_count = len(request.text.split())
         
-        # Rule: 1 question per 50 words. Minimum 3 questions. Maximum 15 questions.
-        calculated_questions = math.ceil(word_count / 50)
+        # Rule: 1 question per 500 words for long transcripts. Minimum 3, Maximum 15.
+        calculated_questions = math.ceil(word_count / 500)
         num_questions = max(3, min(15, calculated_questions))
 
         # 2️⃣ The Dynamic Prompt
@@ -178,23 +178,17 @@ Text:
 {request.text}
 """
 
-        # 3️⃣ Fast execution using Groq
-        response = groq_client.chat.completions.create(
-            messages=[
-                {"role": "system", "content": "You are an educational assistant."},
-                {"role": "user", "content": prompt}
-            ],
-            model="llama-3.1-8b-instant",
-            temperature=0.3
+        # 3️⃣ Fast execution using Gemini (1,000,000 Token Limit protects you here)
+        response = gemini_client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt
         )
 
-        result_text = response.choices[0].message.content
-
-        if not result_text:
+        if not response.text:
             raise HTTPException(status_code=500, detail="Empty response from AI")
 
         # Clean up the response and split into an array for your frontend
-        questions = [q.strip() for q in result_text.strip().split("\n") if q.strip()]
+        questions = [q.strip() for q in response.text.strip().split("\n") if q.strip()]
 
         return {
             "success": True,
