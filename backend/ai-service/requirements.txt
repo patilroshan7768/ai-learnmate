@@ -1,5 +1,7 @@
 fastapi
 uvicorn
+yt-dlp
+deepgram-sdk
 python-dotenv
 groq
 google-genai

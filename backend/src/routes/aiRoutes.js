@@ -9,6 +9,7 @@ const {
   summarize,
   generateQuiz,
   transcribe,
+  transcribeYoutube, // 🔥 ADD THIS LINE
 } = require("../controllers/aiController");
 
 // Multer config for audio and video uploads
@@ -125,4 +126,31 @@ router.post(
   transcribe
 );
 
+/**
+ * @swagger
+ * /api/ai/transcribe-youtube:
+ *   post:
+ *     summary: Transcribe a YouTube video via URL
+ *     tags: [AI]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               url:
+ *                 type: string
+ *                 description: YouTube URL
+ *     responses:
+ *       200:
+ *         description: Successfully transcribed YouTube video
+ */
+router.post(
+  "/transcribe-youtube",
+  authenticate,
+  transcribeYoutube
+);
 module.exports = router;

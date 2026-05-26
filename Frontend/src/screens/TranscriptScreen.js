@@ -6,21 +6,19 @@ import SoftCard from "../components/SoftCard";
 import SoftButton from "../components/SoftButton";
 import Toast from "react-native-toast-message";
 
-const SUMMARY_TYPES = ["short", "medium", "long"];
-
 export default function TranscriptScreen({ route, navigation }) {
   const { transcript, fileName } = route.params || {};
-  const [summaryType, setSummaryType] = useState("medium");
   const [summary, setSummary] = useState("");
   const [summarizing, setSummarizing] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
+  // Automatically uses "medium" on the backend now to save credits
   const handleSummarize = async () => {
     if (!transcript) return;
     setSummarizing(true);
     setSummary("");
     try {
-      const res = await api.post("/ai/summarize", { text: transcript, summaryType });
+      const res = await api.post("/ai/summarize", { text: transcript, summaryType: "medium" });
       const s = res.data?.data?.summary || res.data?.data?.data?.summary || "No summary returned.";
       setSummary(s);
       Toast.show({ type: "success", text1: "Summary ready! 📝" });
@@ -88,43 +86,17 @@ export default function TranscriptScreen({ route, navigation }) {
           )}
         </SoftCard>
 
-        <Text style={{ fontSize: 14, fontWeight: "700", color: "#1E1E2D", marginBottom: 12 }}>
-          Summary Style
-        </Text>
-        <View style={{ flexDirection: "row", gap: 10, marginBottom: 18 }}>
-          {SUMMARY_TYPES.map((t) => (
-            <TouchableOpacity
-              key={t}
-              onPress={() => setSummaryType(t)}
-              style={{
-                flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: "center",
-                backgroundColor: summaryType === t ? "#6C63FF" : "#FFFFFF",
-                borderWidth: 1.5, borderColor: summaryType === t ? "#6C63FF" : "#E8EAFF",
-                shadowColor: "#6C63FF", shadowOffset: { width: 0, height: 3 },
-                shadowOpacity: summaryType === t ? 0.2 : 0, shadowRadius: 6,
-                elevation: summaryType === t ? 3 : 0
-              }}
-            >
-              <Text style={{
-                fontSize: 13, fontWeight: "700",
-                color: summaryType === t ? "#FFFFFF" : "#8E8EA0",
-                textTransform: "capitalize"
-              }}>
-                {t}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <SoftButton
-          title="Summarize with AI"
-          onPress={handleSummarize}
-          loading={summarizing}
-          icon={<Ionicons name="sparkles" size={17} color="#FFFFFF" />}
-        />
+        {/* Start AI Section */}
+        {!summary && !summarizing && (
+          <SoftButton
+            title="Generate AI Summary"
+            onPress={handleSummarize}
+            icon={<Ionicons name="sparkles" size={17} color="#FFFFFF" />}
+          />
+        )}
 
         {summarizing && (
-          <SoftCard style={{ marginTop: 20, alignItems: "center", padding: 24 }}>
+          <SoftCard style={{ alignItems: "center", padding: 24 }}>
             <ActivityIndicator size="large" color="#6C63FF" />
             <Text style={{ color: "#8E8EA0", marginTop: 10, fontSize: 13 }}>
               Generating summary...
@@ -133,7 +105,7 @@ export default function TranscriptScreen({ route, navigation }) {
         )}
 
         {summary ? (
-          <SoftCard style={{ marginTop: 20 }}>
+          <SoftCard style={{ marginBottom: 20 }}>
             <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
               <View style={{
                 width: 36, height: 36, borderRadius: 10, backgroundColor: "#4CC9A020",
@@ -147,9 +119,9 @@ export default function TranscriptScreen({ route, navigation }) {
           </SoftCard>
         ) : null}
 
-        <View style={{ marginTop: 20 }}>
+        <View style={{ marginTop: 12 }}>
           <SoftButton
-            title="Generate Quiz from Transcript"
+            title="Generate Quiz"
             onPress={handleGenerateQuiz}
             variant="secondary"
             icon={<Ionicons name="help-circle-outline" size={18} color="#6C63FF" />}

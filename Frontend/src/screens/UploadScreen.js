@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, Alert } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import { Ionicons } from "@expo/vector-icons";
 import api from "../api/axios";
@@ -7,10 +7,10 @@ import SoftCard from "../components/SoftCard";
 import SoftButton from "../components/SoftButton";
 import Toast from "react-native-toast-message";
 import * as ImagePicker from 'expo-image-picker';
-import { Alert } from "react-native";
 
 export default function UploadScreen({ navigation }) {
   const [file, setFile] = useState(null);
+  const [youtubeUrl, setYoutubeUrl] = useState(""); // 🔥 NEW: State for YouTube Link
   const [loading, setLoading] = useState(false);
 
   const pickFile = async () => {
@@ -21,6 +21,7 @@ export default function UploadScreen({ navigation }) {
       });
       if (!result.canceled && result.assets?.length > 0) {
         setFile(result.assets[0]);
+        setYoutubeUrl(""); // Clear YouTube URL if they pick a file
       }
     } catch (err) {
       Toast.show({ type: "error", text1: "Could not pick file" });
@@ -28,53 +29,52 @@ export default function UploadScreen({ navigation }) {
   };
 
   const pickVideo = async () => {
-  try {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-    if (!permission.granted) {
-      Toast.show({ type: "error", text1: "Permission required" });
-      return;
-    }
+      if (!permission.granted) {
+        Toast.show({ type: "error", text1: "Permission required" });
+        return;
+      }
 
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-      allowsEditing: true,
-      quality: 0.3, // 🔥 compress video
-      videoExportPreset: ImagePicker.VideoExportPreset.H264_720p, // 🔥 reduce size
-    });
-
-    if (!result.canceled && result.assets?.length > 0) {
-      const video = result.assets[0];
-
-      // 🔥 Normalize file structure (IMPORTANT)
-      setFile({
-        uri: video.uri,
-        name: video.fileName || "video.mp4",
-        mimeType: "video/mp4",
-        size: video.fileSize,
+      let result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+        allowsEditing: true,
+        quality: 0.3, 
+        videoExportPreset: ImagePicker.VideoExportPreset.H264_720p, 
       });
+
+      if (!result.canceled && result.assets?.length > 0) {
+        const video = result.assets[0];
+        setFile({
+          uri: video.uri,
+          name: video.fileName || "video.mp4",
+          mimeType: "video/mp4",
+          size: video.fileSize,
+        });
+        setYoutubeUrl(""); // Clear YouTube URL if they pick a video
+      }
+    } catch (err) {
+      Toast.show({ type: "error", text1: "Could not pick video" });
     }
-  } catch (err) {
-    Toast.show({ type: "error", text1: "Could not pick video" });
-  }
-};
+  };
 
-    const handlePick = () => {
-  Alert.alert(
-    "Select File Type",
-    "Choose what you want to upload",
-    [
-      { text: "🎥 Video", onPress: pickVideo },
-      { text: "🎧 Audio", onPress: pickFile },
-      { text: "Cancel", style: "cancel" }
-    ]
-  );
-};
+  const handlePick = () => {
+    Alert.alert(
+      "Select File Type",
+      "Choose what you want to upload",
+      [
+        { text: "🎥 Video", onPress: pickVideo },
+        { text: "🎧 Audio", onPress: pickFile },
+        { text: "Cancel", style: "cancel" }
+      ]
+    );
+  };
 
-
+  // 🎤 ORIGINAL FILE UPLOAD HANDLER
   const handleTranscribe = async () => {
     if (!file) {
-      Toast.show({ type: "error", text1: "Please select an audio file first" });
+      Toast.show({ type: "error", text1: "Please select an audio/video file first" });
       return;
     }
     setLoading(true);
@@ -83,20 +83,46 @@ export default function UploadScreen({ navigation }) {
       formData.append("file", {
         uri: file.uri,
         name: file.name,
-        type: file.mimeType || (
-  file.name.endsWith(".mp4") ? "video/mp4" : "audio/mpeg"
-)
+        type: file.mimeType || (file.name.endsWith(".mp4") ? "video/mp4" : "audio/mpeg")
       });
+      
       const res = await api.post("/ai/transcribe", formData, {
         headers: { "Content-Type": "multipart/form-data" },
-        timeout: 120000
+        timeout: 300000
       });
-      const transcript =
-        res.data?.data?.transcript || res.data?.data?.data?.transcript || "";
+      
+      const transcript = res.data?.data?.transcript || res.data?.transcript || "";
       Toast.show({ type: "success", text1: "Transcription complete! ✅" });
       navigation.navigate("Transcript", { transcript, fileName: file.name });
     } catch (err) {
       Toast.show({ type: "error", text1: "Transcription Failed", text2: err.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 🔥 NEW YOUTUBE HANDLER
+  const handleYoutubeTranscribe = async () => {
+    if (!youtubeUrl.includes("youtube.com") && !youtubeUrl.includes("youtu.be")) {
+      Toast.show({ type: "error", text1: "Please enter a valid YouTube link" });
+      return;
+    }
+    setLoading(true);
+    Toast.show({ type: "info", text1: "Downloading audio... this is usually fast! 🚀" });
+
+    try {
+      // Notice we are passing JSON here, not FormData!
+      const res = await api.post("/ai/transcribe-youtube", { url: youtubeUrl }, {
+        timeout: 300000
+      });
+
+      // Drill down safely into the response (matching your Node.js response structure)
+      const transcript = res.data?.data?.transcript || res.data?.transcript || "";
+      
+      Toast.show({ type: "success", text1: "Transcription complete! ✅" });
+      navigation.navigate("Transcript", { transcript, fileName: "YouTube Video" });
+    } catch (err) {
+      Toast.show({ type: "error", text1: "YouTube Transcription Failed", text2: err.message });
     } finally {
       setLoading(false);
     }
@@ -119,15 +145,16 @@ export default function UploadScreen({ navigation }) {
           AI Transcribe 🎙️
         </Text>
         <Text style={{ fontSize: 14, color: "#8E8EA0", marginTop: 6, marginBottom: 28 }}>
-          Upload an audio or video file to get a transcript
+          Upload a file or paste a YouTube link to get started
         </Text>
 
-        <TouchableOpacity onPress={handlePick} activeOpacity={0.8}>
+        {/* 1️⃣ FILE UPLOAD SECTION */}
+        <TouchableOpacity onPress={handlePick} activeOpacity={0.8} disabled={loading}>
           <View style={{
             borderWidth: 2, borderColor: file ? "#6C63FF" : "#D1D5FF",
             borderStyle: "dashed", borderRadius: 24, padding: 36,
             alignItems: "center", backgroundColor: file ? "#F5F3FF" : "#FFFFFF",
-            marginBottom: 24
+            marginBottom: 12
           }}>
             <View style={{
               width: 72, height: 72, borderRadius: 22,
@@ -137,13 +164,7 @@ export default function UploadScreen({ navigation }) {
               shadowOpacity: file ? 0.3 : 0, shadowRadius: 14, elevation: file ? 6 : 0
             }}>
               <Ionicons
-                name={
-  file?.mimeType?.startsWith("video")
-    ? "videocam"
-    : file
-    ? "musical-notes"
-    : "cloud-upload-outline"
-}
+                name={file?.mimeType?.startsWith("video") ? "videocam" : file ? "musical-notes" : "cloud-upload-outline"}
                 size={34} color={file ? "#FFFFFF" : "#6C63FF"}
               />
             </View>
@@ -155,83 +176,80 @@ export default function UploadScreen({ navigation }) {
                 <Text style={{ fontSize: 13, color: "#8E8EA0", marginTop: 4 }}>
                   {formatSize(file.size)}
                 </Text>
-                <View style={{
-                  marginTop: 12, backgroundColor: "#6C63FF20",
-                  borderRadius: 20, paddingHorizontal: 14, paddingVertical: 5
-                }}>
-                  <Text style={{ fontSize: 12, color: "#6C63FF", fontWeight: "600" }}>
-                    Tap to change file
-                  </Text>
-                </View>
               </>
             ) : (
               <>
-                <Text style={{ fontSize: 15, fontWeight: "700", color: "#1E1E2D" }}>
-                  Tap to select audio or video
-                </Text>
+                <Text style={{ fontSize: 15, fontWeight: "700", color: "#1E1E2D" }}>Tap to select file</Text>
                 <Text style={{ fontSize: 13, color: "#8E8EA0", marginTop: 4, textAlign: "center" }}>
-                  Supports MP3, WAV, M4A, OGG, MP4
+                  Supports MP3, WAV, MP4
                 </Text>
               </>
             )}
           </View>
         </TouchableOpacity>
 
-        <SoftCard style={{ marginBottom: 16 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
-            <View style={{
-              width: 40, height: 40, borderRadius: 12,
-              backgroundColor: "#48CAE420", alignItems: "center", justifyContent: "center"
-            }}>
-              <Ionicons name="time-outline" size={20} color="#48CAE4" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 13, fontWeight: "700", color: "#1E1E2D" }}>Processing Time</Text>
-              <Text style={{ fontSize: 12, color: "#8E8EA0", marginTop: 2 }}>
-                May take up to 60s depending on file size
-              </Text>
-            </View>
-          </View>
+        {/* Start Transcription Button (Only shows if file is selected) */}
+        {file && !youtubeUrl && (
+          <SoftButton
+            title={loading ? "Transcribing..." : "Start File Transcription"}
+            onPress={handleTranscribe}
+            loading={loading}
+            icon={<Ionicons name="mic" size={18} color="#FFFFFF" />}
+          />
+        )}
+
+        {/* DIVIDER */}
+        <Text style={{ textAlign: "center", marginVertical: 20, color: "#8E8EA0", fontWeight: "700" }}>
+          — OR —
+        </Text>
+
+        {/* 2️⃣ YOUTUBE LINK SECTION */}
+        <SoftCard style={{ marginBottom: 28, padding: 20 }}>
+          <Text style={{ fontSize: 15, fontWeight: "700", color: "#1E1E2D", marginBottom: 12 }}>
+            Paste YouTube Link 📺
+          </Text>
+          <TextInput
+            style={{
+              backgroundColor: "#F8F9FA",
+              borderWidth: 1,
+              borderColor: "#E5E7EB",
+              borderRadius: 12,
+              padding: 14,
+              fontSize: 14,
+              color: "#1E1E2D",
+              marginBottom: 16
+            }}
+            placeholder="https://www.youtube.com/watch?v=..."
+            placeholderTextColor="#9CA3AF"
+            value={youtubeUrl}
+            onChangeText={(text) => {
+              setYoutubeUrl(text);
+              if (text) setFile(null); // Clear file if they start typing a URL
+            }}
+            editable={!loading}
+          />
+          
+          <SoftButton
+            title={loading ? "Processing..." : "Transcribe YouTube"}
+            onPress={handleYoutubeTranscribe}
+            loading={loading && !!youtubeUrl}
+            disabled={!youtubeUrl || loading}
+            icon={<Ionicons name="logo-youtube" size={18} color="#FFFFFF" />}
+          />
         </SoftCard>
 
-        <SoftCard style={{ marginBottom: 28 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
-            <View style={{
-              width: 40, height: 40, borderRadius: 12,
-              backgroundColor: "#4CC9A020", alignItems: "center", justifyContent: "center"
-            }}>
-              <Ionicons name="shield-checkmark-outline" size={20} color="#4CC9A0" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 13, fontWeight: "700", color: "#1E1E2D" }}>
-                Powered by Whisper AI
-              </Text>
-              <Text style={{ fontSize: 12, color: "#8E8EA0", marginTop: 2 }}>
-                Groq Whisper large-v3 — highly accurate
-              </Text>
-            </View>
-          </View>
-        </SoftCard>
-
+        {/* LOADING INDICATOR OVERLAY */}
         {loading && (
           <SoftCard style={{ alignItems: "center", padding: 28, marginBottom: 20 }}>
             <ActivityIndicator size="large" color="#6C63FF" />
             <Text style={{ color: "#6C63FF", fontWeight: "700", marginTop: 14, fontSize: 14 }}>
-              Transcribing your audio...
+              Working on it...
             </Text>
             <Text style={{ color: "#8E8EA0", fontSize: 12, marginTop: 4, textAlign: "center" }}>
               This may take a moment. Please don't close the app.
             </Text>
           </SoftCard>
         )}
-
-        <SoftButton
-          title={loading ? "Transcribing..." : "Start Transcription"}
-          onPress={handleTranscribe}
-          loading={loading}
-          disabled={!file || loading}
-          icon={<Ionicons name="mic" size={18} color="#FFFFFF" />}
-        />
       </ScrollView>
     </View>
   );

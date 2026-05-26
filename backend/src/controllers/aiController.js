@@ -190,8 +190,56 @@ const generateQuiz = async (req, res) => {
   }
 };
 
+/**
+ * 🎥 TRANSCRIBE YOUTUBE
+ * Expects: JSON { url }
+ */
+const transcribeYoutube = async (req, res) => {
+  try {
+    const { url } = req.body;
+
+    if (!url) {
+      return res.status(400).json({
+        success: false,
+        message: "YouTube URL is required",
+      });
+    }
+
+    console.log(`🚀 Sending YouTube URL to AI server: ${url}`);
+
+    // Forward the request to the Python FastAPI service
+    const response = await axios.post(
+      `${AI_BASE_URL}/transcribe-youtube`,
+      { url },
+      {
+        timeout: 300000, // 5 minutes to download and process
+      }
+    );
+
+    if (req.user) {
+      await logAction(req.user.id, "ai_transcribe_youtube", "success");
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "YouTube audio transcribed successfully",
+      data: response.data,
+    });
+
+  } catch (error) {
+    console.error("❌ YouTube Transcription Error:", error.response?.data || error.message);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to transcribe YouTube link",
+      error: error.response?.data || error.message,
+    });
+  }
+};
+
 module.exports = {
   transcribe,
   summarize,
   generateQuiz,
+  transcribeYoutube,    // 🔥 ADD THIS LINE
 };
