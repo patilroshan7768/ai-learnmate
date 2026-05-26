@@ -8,7 +8,7 @@ const path = require("path");
 console.log("🚀 Sending file to AI server...");
 
 // FastAPI base URL
-const AI_BASE_URL = "http://127.0.0.1:5001";
+// const AI_BASE_URL = "http://127.0.0.1:5001";
 
 // To this (Use YOUR actual Render link):
 const AI_BASE_URL = "https://ai-learnmate-fb2m.onrender.com";
